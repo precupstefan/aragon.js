@@ -1,6 +1,7 @@
 // Externals
 import { ReplaySubject, Subject, BehaviorSubject, Observable } from 'rxjs/Rx'
 import { merge } from 'rxjs/observable/merge'
+import { combineLatest } from 'rxjs/observable/combineLatest'
 import uuidv4 from 'uuid/v4'
 import Web3 from 'web3'
 import { isAddress, toBN } from 'web3-utils'
@@ -199,12 +200,23 @@ export default class Aragon {
     this.setAccounts(accounts)
   }
 
+  getLatestBlockNumber () {
+    const AVERAGE_BLOCK_TIME_MS = 15 * 1000
+    const POLL_INTERVAL = AVERAGE_BLOCK_TIME_MS * 1.5
+
+    // return new Observable().interval(POLL_INTERVAL).do(() => console.log('woot')).switchMap(this.web3.eth.getBlockNumber).subscribe(console.log)
+    return Observable.interval(1000)
+      .switchMap(() => this.web3.eth.getBlockNumber())
+      .share()
+  }
+
   /**
    * Initialise the ACL (Access Control List).
    *
    * @return {Promise<void>}
    */
   async initAcl ({ aclAddress } = {}) {
+    console.group('initAcl')
     if (!aclAddress) {
       aclAddress = await this.kernelProxy.call('acl')
     }
@@ -223,28 +235,38 @@ export default class Aragon {
     const { permissions: cachedPermissions, blockNumber: cachedBlockNumber } = cached
 
     // When using cache, fetch events from the next block after cache
-    const events = this.aclProxy.events(null, cachedPermissions && (cachedBlockNumber + 1))
+    const events$ = this.aclProxy.events(null, cachedPermissions && (cachedBlockNumber + 1))
 
+    const currentBlock$ = this.getLatestBlockNumber().do((v) => {
+      return console.log(v)
+    })
     // A set for keeping track of the events' blockNumber
     // -1 is to ensure it passes the first comparisons with event's blockNumber
     const blockNumbers = new Set([-1])
     // Permissions Object:
     // { app -> role -> { manager, allowedEntities -> [ entities with permission ] } }
-    const fetchedPermissions$ = events
+    // events$.withLatestFrom(currentBlock$)
+
+    const fetchedPermissions$ = events$
     // Keep track of all events types that have been processed
+      // .scan((permissions, [event, latestBlockNumber]) => {
       .scan((permissions, event) => {
+        // console.log('scan', event, latestBlockNumber)
+        console.log('scan', event)
         const lastBlockProcessed = [...blockNumbers].pop()
 
         // Cache the permissions when we finished processing a block
         if (event.blockNumber > lastBlockProcessed) {
           blockNumbers.add(event.blockNumber)
 
-          if (lastBlockProcessed > 0) {
-          // clone the permissions so it can be saved without proxy
-            const permissionsToCache = Object.assign({}, permissions)
-            // cache optimistically without worrying if it succeeded
-            this.cache.set(ACL_CACHE_KEY, { permissions: permissionsToCache, blockNumber: lastBlockProcessed })
-          }
+          // // Save fully processed valid (non-zero) blocks that are at least 100 blocks old
+          // if (lastBlockProcessed > 0 && lastBlockProcessed < (latestBlockNumber - 100)) {
+          //   console.log(`Save to cache ${lastBlockProcessed} | latest: ${latestBlockNumber}`)
+          //   // clone the permissions so it can be saved without proxy
+          //   const permissionsToCache = Object.assign({}, permissions)
+          //   // cache optimistically without worrying if it succeeded
+          //   this.cache.set(ACL_CACHE_KEY, { permissions: permissionsToCache, blockNumber: lastBlockProcessed })
+          // }
         }
         const eventData = event.returnValues
 
