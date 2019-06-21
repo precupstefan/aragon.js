@@ -124,6 +124,27 @@ function App() {
 }
 ```
 
+#### `useApps()`
+
+Receive the complete list of apps installed in the organization.
+
+Example:
+
+```jsx
+import { useApps } from '@aragon/api-react'
+
+function App() {
+  const apps = useApps()
+  return (
+    <div>
+      {apps.map(app => (
+        <div>{app.name}</div>
+      ))}
+    </div>
+  )
+}
+```
+
 #### `appState`
 
 The app state, after having passed the [background script](https://hack.aragon.org/docs/aragonjs-guide-bg-scripts.html) state through the `reducer` prop of `AragonApi`.

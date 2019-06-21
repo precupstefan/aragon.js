@@ -32,6 +32,7 @@ function AragonApi({
   const [appState, setAppState] = useState(null)
   const [displayMenuButton, setDisplayMenuButton] = useState(false)
   const [path, setPath] = useState('/')
+  const [apps, setApps] = useState([])
 
   useEffect(() => {
     setApi(new Aragon(new providers.WindowMessage(window.parent)))
@@ -69,6 +70,10 @@ function AragonApi({
         setPath(data.value)
       }
 
+      if (data.name === 'apps' && Array.isArray(data.value)) {
+        setApps(data.value)
+      }
+
       if (data.name === 'ready') {
         subscribers = [
           // app state
@@ -104,6 +109,7 @@ function AragonApi({
     {
       value: {
         api,
+        apps,
         connectedAccount,
         network,
         displayMenuButton,
@@ -142,6 +148,7 @@ const useAragonApi = () => ({
 // direct access hooks
 const useApi = () => getAragonApiData('useApi()').api
 const useAppState = () => getAragonApiData('useAppState()').appState
+const useApps = () => getAragonApiData('useApps()').apps
 const useConnectedAccount = () =>
   getAragonApiData('useConnectedAccount()').connectedAccount
 const useMenuButton = () => [
@@ -156,6 +163,7 @@ export {
   AragonApiContext as _AragonApiContext,
   useApi,
   useAppState,
+  useApps,
   useAragonApi,
   useConnectedAccount,
   useMenuButton,
